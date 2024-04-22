@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 
-```{r}
-
-=======
 ---
 title: "36-460/660 Final Project Main"
 author: "Alex Cheng, Melody Wang, Liz Chu, Kevin Ren"
@@ -16,8 +12,7 @@ output:
     toc_float: yes
 editor_options:
   chunk_output_type: inline
-
-
+---
 
 
 # Data Preproccessing 
@@ -26,11 +21,27 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 library("nflfastR")
 library("ggplot2")
+library(tidyverse)
 ```
 
 
 ```{r cars}
 df <- nflfastR::load_pbp()
+```
+
+```{r}
+# this takes 14 seconds on my shitty laptop
+df = clean_pbp(df)
+```
+```{r}
+# CLEAN DATA
+# remove all plays that weren't rushes or passes (this means punts, kickoffs, special teams plays, aborted plays, qb spikes, etc.)
+df$success = ifelse(df$down >= 3 & df$ydstogo > df$yards_gained, 0, df$success)
+cleandf = df %>% filter(play_type == "run" | play_type == "pass") %>% filter(penalty == 0) %>% filter(success == 1)
+# remove all plays where a penalty occured - we only want normal plays
+# set third downs that didnt get a first down as unsuccessful
+# 3 1/2 we can think of other successes but this is the easiest one so far
+# remove all unsuccessful plays
 ```
 
 
@@ -78,5 +89,4 @@ for (i in 1:nrow(playData)) {
   
 }
 head(playData, 10)
->>>>>>> 1fcecf0e1244b484bd198bfd3b2a8e97010b0689
 ```
