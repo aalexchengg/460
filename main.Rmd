@@ -1,0 +1,61 @@
+
+
+# Data Preproccessing 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("nflfastR")
+library("ggplot2")
+```
+
+
+```{r cars}
+df <- nflfastR::load_pbp()
+```
+
+
+```{r}
+tmp_df = filter(df, game_id == "2023_01_ARI_WAS")
+tmp_df$game_seconds_remaining
+head(tmp_df)
+# for all plays:
+# find the game the play took place in
+# find the play before this one, that took place closest to it
+# get the type of play this one was
+# we can group by prev_play for conditional visualization
+```
+```{r}
+library(dplyr)
+playData <- df %>%
+  arrange(game_id, time) %>%
+  group_by(game_id) %>%
+  group_by(time, .add = TRUE)
+playData <- playData[,c("game_id", "time", "play_id", "play_type", "drive")]
+```
+
+```{r}
+df$drive
+```
+
+
+```{r}
+playData = df[,c("game_id", "time", "play_id", "play_type", "drive")]
+
+playData[, "prev_play"] = NA
+for (i in 1:nrow(playData)) {
+  # if special teams play, note this
+  if (is.na(playData[i,]$play_type) | is.na(playData[i,]$drive) | ((playData[i,]$play_type != "run") & (playData[i,]$play_type != "pass"))) {
+    playData[i,]$prev_play = "special"
+  }
+  # if first play of drive, then make prev_play a special token
+  else if ((i == 1) | is.na(playData[i-1,]$drive) | (playData[i-1,]$drive != playData[i,]$drive)) {
+    playData[i,]$prev_play = "first play"
+  }
+  # "normal" play
+  else {
+   playData[i,]$prev_play = playData[i-1,]$play_type
+  }
+  
+}
+head(playData, 10)
+```
