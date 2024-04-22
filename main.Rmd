@@ -1,13 +1,4 @@
----
-title: "36-460/660 Final Project Main"
-author: "Alex Cheng, Melody Wang, Liz Chu, Kevin Ren"
-date: "April 23rd, 2024"
-output:
-  pdf_document:
-    toc: yes
-  html_document:
-    code_folding: show
-    toc: yes
-    toc_float: yes
-editor_options:
-  chunk_output_type: inline
+
+```{r}
+
+```
