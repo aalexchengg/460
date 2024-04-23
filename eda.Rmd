@@ -79,7 +79,12 @@ ggplot(data = frequencies, aes(x = factor(down), y = value, fill = name)) + labs
 yardsvtest = df %>% filter(is.na(ydstogo) == FALSE) %>% group_by(ydstogo) %>% summarize(freq = sum(pass_attempt, na.rm = TRUE)/(sum(pass_attempt, na.rm = TRUE) + sum(rush_attempt, na.rm = TRUE)))
 yardsvtest = data.frame(ydstogo = yardsvtest$ydstogo, "Pass Frequency" = yardsvtest$freq, "Run Frequency" = 1 - yardsvtest$freq)
 
+legend_colors <- c("Pass" = "red", "Run" = "blue")
+
 ggplot(data = yardsvtest, aes(x = ydstogo)) + 
-  geom_line(aes(y = Pass.Frequency), color = "red") + 
-  geom_line(aes(y = Run.Frequency), color = "blue")
+  geom_line(aes(y = Pass.Frequency, color = "Pass")) + 
+  geom_line(aes(y = Run.Frequency, color = "Run")) + 
+  labs(title="How does distance to 1st down impact play type?", x="Distance from 1st down (yards)", y="Frequency of Play") + 
+  scale_color_manual(values = legend_colors) + 
+  theme_bw()
 ```
