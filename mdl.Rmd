@@ -24,63 +24,190 @@ library(lme4)
 ```
 
 ```{r}
+
+# library(espnscrapeR)
+# rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
+# rush_data = rush_data %>% 
+#   select(c("team", "rush_yds")) %>% 
+#   arrange(rush_yds, desc=TRUE) %>% 
+#   mutate(rush_rank = floor(rank(-rush_yds)))
+# 
+# rush_data = rush_data %>% select(-c("rush_yds"))
+# # rush rankings = highest rush yards
+# 
+# pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
+# pass_data = pass_data %>% select(c("team", "pass_yds")) %>% 
+#   arrange(pass_yds, desc=TRUE) %>% 
+#   mutate(pass_rank = floor(rank(-pass_yds)))
+# 
+# pass_data = pass_data %>% select(-c("pass_yds"))
+# # pass rankings = highest pass yards
+# 
+# teams = nflfastR::teams_colors_logos %>% select(c("team_abbr", "team_nick"))
+# teams = subset(teams, team_abbr != "STL" & team_abbr != "OAK" &
+#                team_abbr != "SD" & team_abbr != "LAR")
+# teams = teams %>% 
+#   left_join(rush_data, by=join_by(team_nick == team)) %>%
+#   left_join(pass_data, by=join_by(team_nick == team))
+# 
+# df = df %>% left_join(teams, by=join_by(posteam == team_abbr))
 df <- read_csv("runrunrun.csv")
-
-library(espnscrapeR)
-rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
-rush_data = rush_data %>% 
-  select(c("team", "rush_yds")) %>% 
-  arrange(rush_yds, desc=TRUE) %>% 
-  mutate(rush_rank = floor(rank(-rush_yds)))
-
-rush_data = rush_data %>% select(-c("rush_yds"))
-# rush rankings = highest rush yards
-
-pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
-pass_data = pass_data %>% select(c("team", "pass_yds")) %>% 
-  arrange(pass_yds, desc=TRUE) %>% 
-  mutate(pass_rank = floor(rank(-pass_yds)))
-
-pass_data = pass_data %>% select(-c("pass_yds"))
-# pass rankings = highest pass yards
-
-teams = nflfastR::teams_colors_logos %>% select(c("team_abbr", "team_nick"))
-teams = subset(teams, team_abbr != "STL" & team_abbr != "OAK" &
-               team_abbr != "SD" & team_abbr != "LAR")
-teams = teams %>% 
-  left_join(rush_data, by=join_by(team_nick == team)) %>%
-  left_join(pass_data, by=join_by(team_nick == team))
-
-df = df %>% left_join(teams, by=join_by(posteam == team_abbr))
 df$outcome = ifelse(df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
 df = df %>% filter(success == 1)
-```
 
-```{r}
-model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data=df, family="binomial")
-summary(model1)
-```
-
-```{r}
 library(mgcv)
-model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data=df, family="binomial")
-summary(model2)
-```
-
-```{r}
 library(nnet)
-df = df %>% filter((play_type == "pass" & !is.na(pass_length) & !is.na(pass_location)) | (play_type == "pass" & !is.na(run_location)))
-df$multi = ifelse(df$play_type == "run", paste("run", df$run_location), paste("pass", df$pass_length, df$pass_location))
 
-model3 = multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data = df, maxit = 300, trace = FALSE)
-summary(model3)
 ```
-
 
 ```{r}
-model4 <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + (1|posteam) + (1|defteam) + (1|posteam:defteam) + ydstogo + pass_rank, data = df, family = "binomial")
-summary(model4)
+model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank, data=df, family="binomial")
 ```
+
+```{r}
+model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank, data=df, family="binomial")
+```
+
+```{r}
+model4 <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                  as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                  (1|posteam:defteam) + ydstogo + pass_rank, 
+                data = df, family = "binomial")
+```
+
+```{r}
+# filtering for model3
+df = df %>% filter((play_type == "pass" & !is.na(pass_length) & 
+                      !is.na(pass_location)) | 
+                     (play_type == "run" & !is.na(run_location)))
+df$multi = ifelse(df$play_type == "run", paste("run", df$run_location), 
+                  paste("pass", df$pass_length, df$pass_location))
+
+model3 <- multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                     as.factor(prev_play_3) + ydstogo + score_differential + 
+                     pass_rank + rush_rank, data = df, maxit = 300, 
+                   trace = FALSE)
+```
+
+```{r}
+# majority vote baseline
+# baseline = ifelse(sum(df$play_type == "pass") > sum(df$play_type == "run"), "pass", "run")
+mses = data.frame(dummy = c(1))
+
+cv.glm <- function(data, formulae, nfolds = 5) { 
+  formulae <- sapply(formulae, as.formula)
+  n <- nrow(data)
+  fold.labels <- sample(rep(1:nfolds, length.out = n))
+  mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+  colnames <- as.character(formulae)
+  for (fold in 1:nfolds) {
+    test.rows <- which(fold.labels == fold)
+    train <- data[-test.rows, ]
+    test <- data[test.rows, ]
+    for (form in 1:length(formulae)) {
+      current.model <- glm(formula = formulae[[form]], data = train, family = "binomial")
+      predictions <- predict(current.model, newdata = test)
+      test.responses <- eval(formulae[[form]][[2]], envir = test)
+      test.errors <- test.responses - predictions
+      mses[fold, form] <- mean(test.errors^2)
+    }
+  }
+  return(colMeans(mses))
+}
+
+cv.gam <- function(data, formulae, nfolds = 5) { 
+  formulae <- sapply(formulae, as.formula)
+  n <- nrow(data)
+  fold.labels <- sample(rep(1:nfolds, length.out = n))
+  mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+  colnames <- as.character(formulae)
+  for (fold in 1:nfolds) {
+    test.rows <- which(fold.labels == fold)
+    train <- data[-test.rows, ]
+    test <- data[test.rows, ]
+    for (form in 1:length(formulae)) {
+      current.model <- gam(formula = formulae[[form]], data = train, family = "binomial")
+      predictions <- predict(current.model, newdata = test)
+      test.responses <- eval(formulae[[form]][[2]], envir = test)
+      test.errors <- test.responses - predictions
+      mses[fold, form] <- mean(test.errors^2)
+    }
+  }
+  return(colMeans(mses))
+}
+
+cv.multinom <- function(data, formulae, nfolds = 5) { 
+  formulae <- sapply(formulae, as.formula)
+  n <- nrow(data)
+  fold.labels <- sample(rep(1:nfolds, length.out = n))
+  mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+  colnames <- as.character(formulae)
+  for (fold in 1:nfolds) {
+    test.rows <- which(fold.labels == fold)
+    train <- data[-test.rows, ]
+    test <- data[test.rows, ]
+    for (form in 1:length(formulae)) {
+      current.model <- multinom(formula = formulae[[form]], data = train, family = "binomial")
+      predictions <- predict(current.model, newdata = test)
+      test.responses <- eval(formulae[[form]][[2]], envir = test)
+      predictions = as.character(predictions)
+      test.errors <- ifelse(test.responses == predictions, 0, 1)
+      mses[fold, form] <- mean(test.errors^2)
+    }
+  }
+  return(colMeans(mses))
+}
+
+cv.glmer <- function(data, formulae, nfolds = 5) { 
+  formulae <- sapply(formulae, as.formula)
+  n <- nrow(data)
+  fold.labels <- sample(rep(1:nfolds, length.out = n))
+  mses <- matrix(NA, nrow = nfolds, ncol = length(formulae))
+  colnames <- as.character(formulae)
+  for (fold in 1:nfolds) {
+    test.rows <- which(fold.labels == fold)
+    train <- data[-test.rows, ]
+    test <- data[test.rows, ]
+    for (form in 1:length(formulae)) {
+      current.model <- glmer(formula = formulae[[form]], data = train, family = "binomial")
+      predictions <- predict(current.model, newdata = test)
+      test.responses <- eval(formulae[[form]][[2]], envir = test)
+      test.errors <- test.responses - predictions
+      mses[fold, form] <- mean(test.errors^2)
+    }
+  }
+  return(colMeans(mses))
+}
+
+
+mses$model1 = cv.glm(data=df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mses$model2 = cv.gam(data=df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mses$model3 = cv.multinom(data=df, c("multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) +
+                     as.factor(prev_play_3) + ydstogo + score_differential +
+                     pass_rank + rush_rank"))
+
+
+mses$model4 = cv.glmer(data=df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                  as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                  (1|posteam:defteam) + ydstogo + pass_rank"))
+
+mses$baseline = mean((ifelse(0 == df$outcome, 0, 1))^2)
+
+mses %>% select(-c("dummy"))
+
+```
+
+
 
 
 
