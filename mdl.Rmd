@@ -20,6 +20,7 @@ library(espnscrapeR)
 library("ggplot2")
 library(tidyverse)
 library(dplyr)
+library(lme4)
 ```
 
 ```{r}
@@ -31,4 +32,24 @@ df$outcome = ifelse(df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
 model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo, data=df, family="binomial")
 summary(model1)
 ```
+
+```{r}
+model4_1  <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + (as.factor(prev_play_2) | posteam) + as.factor(prev_play_3) + ydstogo, family = "binomial", data = df)
+
+```
+
+```{r}
+# model4_1 <- glmer(outcome ~ as.factor(prev_play_1) + (as.factor(prev_play_1) | posteam) + (as.factor(prev_play_1) | defteam) , family = "binomial", data = df)
+ppp <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + (1|posteam) + (1|defteam) + (1|posteam:defteam) + rush_rank + pass_rank + ydstogo, data = df, family = "binomial")
+```
+
+```{r}
+summary(ppp)
+```
+```{r}
+
+```
+
+
+
 
