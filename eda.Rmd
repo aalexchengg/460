@@ -16,24 +16,56 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library("nflfastR")
+library(espnscrapeR)
 library("ggplot2")
+library(tidyverse)
+library(dplyr)
 ```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-df <- playData
+df <- nflfastR::load_pbp()
+df = clean_pbp(df)
+# CLEAN DATA
+# remove all plays that weren't rushes or passes (this means punts, kickoffs, special teams plays, aborted plays, qb spikes, etc.)
+df$success = ifelse(df$down >= 3 & df$ydstogo > df$yards_gained, 0, df$success)
+cleandf = df %>% 
+  filter(play_type == "run" | play_type == "pass") %>% 
+  filter(penalty == 0) %>% 
+  filter(success == 1)
+# remove all plays where a penalty occured - we only want normal plays
+# set third downs that didnt get a first down as unsuccessful
+# 3 1/2 we can think of other successes but this is the easiest one so far
+# remove all unsuccessful plays
 ```
 
-
 ```{r}
-ggplot(aes(x=play_type), data=df) +
-  geom_bar(aes(fill=play_type)) + 
-  labs(title="Marginal Distribution of Play Type", xlab="Play Type", ylab="Frequency")
+
+rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
+rush_data = rush_data %>%
+  arrange(rush_yds, desc=TRUE) %>%
+  mutate(rush_rank = floor(rank(-rush_yds)))
+
+rush_data = rush_data %>% select(-c("rush_yds"))
+# rush rankings = highest rush yards
+
+pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
+pass_data = pass_data %>% 
+  arrange(pass_yds, desc=TRUE) %>% 
+  mutate(pass_rank = floor(rank(-pass_yds)))
+
+pass_data = pass_data %>% select(-c("pass_yds"))
+# pass rankings = highest pass yards
+
+ggplot(data=rush_data, aes(x=rush_rank, y=rush_att)) + geom_point(color='blue') + labs(
+  title="Rush Rank vs. Rush Attempts", 
+  x="Rush Rank", 
+  y="Rush Attempts Made"
+)
+ggplot(data=pass_data, aes(x=pass_rank, y=pass_att)) + geom_point(color='red') + labs(
+  title="Pass Rank vs. Pass Attempts", 
+  x="Pass Rank", 
+  y="Pass Attempts Made"
+)
 ```
 
 
