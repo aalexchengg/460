@@ -64,12 +64,14 @@ library(nnet)
 model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
                 as.factor(prev_play_3) + ydstogo + score_differential + 
                 pass_rank + rush_rank, data=df, family="binomial")
+summary(model1)
 ```
 
 ```{r}
 model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
-                as.factor(prev_play_3) + ydstogo + score_differential + 
+                as.factor(prev_play_3) + s(ydstogo) + s(score_differential) + 
                 pass_rank + rush_rank, data=df, family="binomial")
+summary(model2)
 ```
 
 ```{r}
