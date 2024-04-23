@@ -52,6 +52,7 @@ teams = teams %>%
 
 df = df %>% left_join(teams, by=join_by(posteam == team_abbr))
 df$outcome = ifelse(df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
+df = df %>% filter(success == 1)
 ```
 
 ```{r}
