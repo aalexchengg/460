@@ -94,7 +94,7 @@ head(tmp_df)
 
 ```{r}
 
-playData <- df %>%
+playData <- cleandf %>%
   arrange(game_id, time) %>%
   group_by(game_id) %>%
   group_by(time, .add = TRUE)
@@ -102,28 +102,70 @@ playData <- playData[,c("game_id", "time", "play_id", "play_type", "drive")]
 ```
 
 ```{r}
-df$drive
+playData = filter(playData, !is.na(drive))
+filter(playData, is.na(drive))
 ```
 
 
 ```{r}
-playData = df[,c("game_id", "time", "play_id", "play_type", "drive")]
+playData = cleandf[,c("game_id", "time", "play_id", "play_type", "drive", "posteam", "success")]
+playData = filter(playData, !is.na(drive))
 
-playData[, "prev_play"] = NA
+playData[, "prev_play_1"] = NA
 for (i in 1:nrow(playData)) {
-  # if special teams play, note this
-  if (is.na(playData[i,]$play_type) | is.na(playData[i,]$drive) | ((playData[i,]$play_type != "run") & (playData[i,]$play_type != "pass"))) {
-    playData[i,]$prev_play = "special"
+    if ((i == 1) || (playData[i-1,]$drive != playData[i,]$drive)){
+      playData[i,]$prev_play_1 = "first play"
+    }
+    # "normal" play
+    else {
+     playData[i,]$prev_play_1 = playData[i-1,]$play_type
+    }
   }
-  # if first play of drive, then make prev_play a special token
-  else if ((i == 1) | is.na(playData[i-1,]$drive) | (playData[i-1,]$drive != playData[i,]$drive)) {
-    playData[i,]$prev_play = "first play"
+```
+
+```{r}
+head(playData)
+```
+
+
+```{r}
+k = 2
+
+for (t in 1:k) {
+    playData[, paste("prev_play_", t+1, sep="")] = NA
+    for (i in 1:nrow(playData)) {
+      if ((i <= t+1) || (playData[i-t-1,]$drive != playData[i,]$drive)){
+        print(paste("prev_play_", t+1, sep=""))
+        playData[i, paste("prev_play_", t+1, sep="")] = "first play"
+      }
+      # "normal" play
+      else {
+       playData[i,paste("prev_play_", t+1, sep="")]= playData[i-t-1,]$play_type
+      }
   }
-  # "normal" play
-  else {
-   playData[i,]$prev_play = playData[i-1,]$play_type
-  }
-  
 }
+# 
+# playData[, "prev_play_2"] = NA
+# for (i in 1:nrow(playData)) {
+#   # if special teams play, note this
+#   print(i)
+#   # if (is.na(playData[i,]$prev_play) || is.na(playData[i,]$drive) || ((playData[i,]$prev_play != "run") && (playData[i,]$prev_play != "pass"))) {
+#   #   playData[i,]$prev_play_2 = "special"
+#   # }
+#   # if first play of drive, then make prev_play a special token
+# 
+#   else if ((i == 1) || is.na(playData[i-1,]$drive) || (playData[i-1,]$drive != playData[i,]$drive)) {
+#     playData[i,]$prev_play_2 = "first play"
+#   }
+#   # "normal" play
+#   else {
+#    playData[i,]$prev_play_2 = playData[i-1,]$prev_play
+#   }
+# }
 head(playData, 10)
+```
+
+
+```{r}
+tail(playData, 20)
 ```
