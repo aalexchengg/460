@@ -156,7 +156,7 @@ cv.multinom <- function(data, formulae, nfolds = 5) {
     test <- data[test.rows, ]
     for (form in 1:length(formulae)) {
       current.model <- multinom(formula = formulae[[form]], data = train, family = "binomial")
-      predictions <- predict(current.model, newdata = test, type="probs")
+      predictions <- predict(current.model, newdata = test)
       test.responses <- eval(formulae[[form]][[2]], envir = test)
       predictions = as.character(predictions)
       test.errors <- ifelse(test.responses == predictions, 0, 1)
@@ -200,7 +200,6 @@ mses$model3 = cv.multinom(data=df, c("multi ~ as.factor(prev_play_1) + as.factor
                      as.factor(prev_play_3) + ydstogo + score_differential +
                      pass_rank + rush_rank"))
 
-
 mses$model4 = cv.glmer(data=df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
                   as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
                   (1|posteam:defteam) + ydstogo + pass_rank"))
@@ -211,7 +210,42 @@ mses %>% select(-c("dummy"))
 
 ```
 
+```{r}
 
+
+failed_df <- read_csv("runrunrun.csv")
+failed_df$outcome = ifelse(failed_df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
+failed_df = failed_df %>% filter(success == 0)
+failed_df = failed_df %>% filter((play_type == "pass" & !is.na(pass_length) & 
+                      !is.na(pass_location)) | 
+                     (play_type == "run" & !is.na(run_location)))
+failed_df$multi = ifelse(failed_df$play_type == "run", paste("run", failed_df$run_location), 
+                  paste("pass", failed_df$pass_length, failed_df$pass_location))
+
+
+mses_fails = data.frame(dummy = c(1))
+
+mses_fails$model1 = cv.glm(data=failed_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mses_fails$model2 = cv.gam(data=failed_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mses_fails$model3 = cv.multinom(data=failed_df, c("multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) +
+                     as.factor(prev_play_3) + ydstogo + score_differential +
+                     pass_rank + rush_rank"))
+
+mses_fails$model4 = cv.glmer(data=failed_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                  as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                  (1|posteam:defteam) + ydstogo + pass_rank"))
+
+mses_fails$baseline = mean((ifelse(0 == failed_df$outcome, 0, 1))^2)
+
+mses_fails %>% select(-c("dummy"))
+
+```
 
 
 
