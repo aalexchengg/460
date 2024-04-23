@@ -38,7 +38,7 @@ cleandf = df %>%
 # remove all unsuccessful plays
 ```
 
-```{r}
+```{r, rankvattempt}
 
 rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
 rush_data = rush_data %>%
@@ -56,16 +56,30 @@ pass_data = pass_data %>%
 pass_data = pass_data %>% select(-c("pass_yds"))
 # pass rankings = highest pass yards
 
-ggplot(data=rush_data, aes(x=rush_rank, y=rush_att)) + geom_point(color='blue') + labs(
+ggplot(data=rush_data, aes(x=rush_rank, y=rush_att, label = team)) + geom_point(color='blue') + labs(
   title="Rush Rank vs. Rush Attempts", 
   x="Rush Rank", 
   y="Rush Attempts Made"
-)
-ggplot(data=pass_data, aes(x=pass_rank, y=pass_att)) + geom_point(color='red') + labs(
+) + geom_text(hjust = 0, vjust = 0)
+ggplot(data=pass_data, aes(x=pass_rank, y=pass_att, label = team)) + geom_point(color='red') + labs(
   title="Pass Rank vs. Pass Attempts", 
   x="Pass Rank", 
   y="Pass Attempts Made"
-)
+) + geom_text(hjust = 0, vjust = 0)
 ```
 
+```{r, marginal}
+frequencies = df %>% filter(is.na(down) == FALSE) %>% group_by(down) %>% summarize(freq = sum(pass_attempt, na.rm = TRUE)/(sum(pass_attempt, na.rm = TRUE) + sum(rush_attempt, na.rm = TRUE)))
+frequencies = data.frame(down = 1:4, "Pass Frequency" = frequencies$freq, "Run Frequency" = 1 - frequencies$freq) %>% pivot_longer(-down)
 
+ggplot(data = frequencies, aes(x = factor(down), y = value, fill = name)) + labs(x = "Down", y = "Play Frequency", fill = "Type", title = "Play Frequency By Down") + geom_bar(position = "dodge", stat = "identity")
+```
+
+```{r}
+yardsvtest = df %>% filter(is.na(ydstogo) == FALSE) %>% group_by(ydstogo) %>% summarize(freq = sum(pass_attempt, na.rm = TRUE)/(sum(pass_attempt, na.rm = TRUE) + sum(rush_attempt, na.rm = TRUE)))
+yardsvtest = data.frame(ydstogo = yardsvtest$ydstogo, "Pass Frequency" = yardsvtest$freq, "Run Frequency" = 1 - yardsvtest$freq)
+
+ggplot(data = yardsvtest, aes(x = ydstogo)) + 
+  geom_line(aes(y = Pass.Frequency), color = "red") + 
+  geom_line(aes(y = Run.Frequency), color = "blue")
+```
