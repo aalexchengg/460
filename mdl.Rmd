@@ -24,11 +24,52 @@ library(dplyr)
 
 ```{r}
 df <- read_csv("runrunrun.csv")
+
+library(espnscrapeR)
+rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
+rush_data = rush_data %>% 
+  select(c("team", "rush_yds")) %>% 
+  arrange(rush_yds, desc=TRUE) %>% 
+  mutate(rush_rank = floor(rank(-rush_yds)))
+
+rush_data = rush_data %>% select(-c("rush_yds"))
+# rush rankings = highest rush yards
+
+pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
+pass_data = pass_data %>% select(c("team", "pass_yds")) %>% 
+  arrange(pass_yds, desc=TRUE) %>% 
+  mutate(pass_rank = floor(rank(-pass_yds)))
+
+pass_data = pass_data %>% select(-c("pass_yds"))
+# pass rankings = highest pass yards
+
+teams = nflfastR::teams_colors_logos %>% select(c("team_abbr", "team_nick"))
+teams = subset(teams, team_abbr != "STL" & team_abbr != "OAK" &
+               team_abbr != "SD" & team_abbr != "LAR")
+teams = teams %>% 
+  left_join(rush_data, by=join_by(team_nick == team)) %>%
+  left_join(pass_data, by=join_by(team_nick == team))
+
+df = df %>% left_join(teams, by=join_by(posteam == team_abbr))
 df$outcome = ifelse(df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
 ```
 
 ```{r}
-model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo, data=df, family="binomial")
+model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data=df, family="binomial")
 summary(model1)
 ```
 
+```{r}
+library(mgcv)
+model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data=df, family="binomial")
+summary(model2)
+```
+
+```{r}
+library(nnet)
+df = df %>% filter((play_type == "pass" & !is.na(pass_length) & !is.na(pass_location)) | (play_type == "pass" & !is.na(run_location)))
+df$multi = ifelse(df$play_type == "run", paste("run", df$run_location), paste("pass", df$pass_length, df$pass_location))
+
+model3 = multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential + pass_rank + rush_rank, data = df, maxit = 300, trace = FALSE)
+summary(model3)
+```
