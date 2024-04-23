@@ -112,7 +112,7 @@ cv.glm <- function(data, formulae, nfolds = 5) {
     test <- data[test.rows, ]
     for (form in 1:length(formulae)) {
       current.model <- glm(formula = formulae[[form]], data = train, family = "binomial")
-      predictions <- predict(current.model, newdata = test)
+      predictions <- predict(current.model, newdata = test, type="response")
       test.responses <- eval(formulae[[form]][[2]], envir = test)
       test.errors <- test.responses - predictions
       mses[fold, form] <- mean(test.errors^2)
@@ -133,8 +133,10 @@ cv.gam <- function(data, formulae, nfolds = 5) {
     test <- data[test.rows, ]
     for (form in 1:length(formulae)) {
       current.model <- gam(formula = formulae[[form]], data = train, family = "binomial")
-      predictions <- predict(current.model, newdata = test)
+      predictions <- predict(current.model, newdata = test, type="response")
+      print(summary(predictions))
       test.responses <- eval(formulae[[form]][[2]], envir = test)
+      print(summary(test.responses))
       test.errors <- test.responses - predictions
       mses[fold, form] <- mean(test.errors^2)
     }
@@ -154,7 +156,7 @@ cv.multinom <- function(data, formulae, nfolds = 5) {
     test <- data[test.rows, ]
     for (form in 1:length(formulae)) {
       current.model <- multinom(formula = formulae[[form]], data = train, family = "binomial")
-      predictions <- predict(current.model, newdata = test)
+      predictions <- predict(current.model, newdata = test, type="probs")
       test.responses <- eval(formulae[[form]][[2]], envir = test)
       predictions = as.character(predictions)
       test.errors <- ifelse(test.responses == predictions, 0, 1)
@@ -176,7 +178,7 @@ cv.glmer <- function(data, formulae, nfolds = 5) {
     test <- data[test.rows, ]
     for (form in 1:length(formulae)) {
       current.model <- glmer(formula = formulae[[form]], data = train, family = "binomial")
-      predictions <- predict(current.model, newdata = test)
+      predictions <- predict(current.model, newdata = test, type="response")
       test.responses <- eval(formulae[[form]][[2]], envir = test)
       test.errors <- test.responses - predictions
       mses[fold, form] <- mean(test.errors^2)
