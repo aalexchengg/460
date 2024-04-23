@@ -28,7 +28,21 @@ df$outcome = ifelse(df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
 ```
 
 ```{r}
-model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo, data=df, family="binomial")
+model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential, data=df, family="binomial")
 summary(model1)
 ```
 
+```{r}
+library(mgcv)
+model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential, data=df, family="binomial")
+summary(model2)
+```
+
+```{r}
+library(nnet)
+df = df %>% filter((play_type == "pass" & !is.na(pass_length) & !is.na(pass_location)) | (play_type == "pass" & !is.na(run_location)))
+df$multi = ifelse(df$play_type == "run", paste("run", df$run_location), paste("pass", df$pass_length, df$pass_location))
+
+model3 = multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + as.factor(prev_play_3) + ydstogo + score_differential, data = df, maxit = 300, trace = FALSE)
+summary(model3)
+```
