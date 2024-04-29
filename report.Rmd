@@ -1,6 +1,6 @@
 
 ---
-title: "36-460/660 Final Project Main"
+title: "36-460/660 Final Project Report"
 author: "Alex Cheng, Melody Wang, Liz Chu, Kevin Ren"
 date: "April 23rd, 2024"
 output:
@@ -14,158 +14,40 @@ editor_options:
   chunk_output_type: inline
 ---
 
-
-# Data Preproccessing 
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library("nflfastR")
+library(espnscrapeR)
 library("ggplot2")
 library(tidyverse)
 library(dplyr)
+library(lme4)
+library(mgcv)
+library(nnet)
+df <- read_csv("runrunrun.csv")
+df$outcome = ifelse(df$play_type == "run", 1, 0) 
+# 1 if run, 0 otherwise (pass)
+success_df = df %>% filter(success == 1)
 ```
 
+# Introduction
 
-```{r cars}
-df <- nflfastR::load_pbp()
-```
+*Describes the problem you’re tackling, why it is interesting or important. Gives a brief summary of your results (though most of your results will be at the end of your report). *
 
-```{r}
-# this takes 14 seconds on my shitty laptop
-df = clean_pbp(df)
-```
+# Data
 
-```{r}
-# CLEAN DATA
-# remove all plays that weren't rushes or passes (this means punts, kickoffs, special teams plays, aborted plays, qb spikes, etc.)
-df$success = ifelse(df$down >= 3 & df$ydstogo > df$yards_gained, 0, df$success)
-cleandf = df %>% 
-  filter(play_type == "run" | play_type == "pass") %>% 
-  filter(penalty == 0) %>% 
-  filter(success == 1)
-# remove all plays where a penalty occured - we only want normal plays
-# set third downs that didnt get a first down as unsuccessful
-# 3 1/2 we can think of other successes but this is the easiest one so far
-# remove all unsuccessful plays
-```
+*Describes the data you’re using in detail, where you accessed it, along with relevant exploratory data analysis (EDA). You should also include descriptions of any major pre-processing steps.*
 
-```{r}
+**TODO: we should probably include the code that got us runrunrun.csv somewhere in our code submission**
 
-library(espnscrapeR)
-rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
-rush_data = rush_data %>% 
-  select(c("team", "rush_yds")) %>% 
-  arrange(rush_yds, desc=TRUE) %>% 
-  mutate(rush_rank = floor(rank(-rush_yds)))
+# Methods
 
-rush_data = rush_data %>% select(-c("rush_yds"))
-# rush rankings = highest rush yards
+*Describes the modeling techniques you chose, their assumptions, justifications for why they are appropriate for the problem, and your plan for comparison/evaluation approaches. Additionally, you will need to describe how you will quantify uncertainty for your estimates of interest, with sufficient descriptions of the approach and justification for why it’s appropriate for your data and problem of interest.*
 
-pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
-pass_data = pass_data %>% select(c("team", "pass_yds")) %>% 
-  arrange(pass_yds, desc=TRUE) %>% 
-  mutate(pass_rank = floor(rank(-pass_yds)))
+# Results
 
-pass_data = pass_data %>% select(-c("pass_yds"))
-# pass rankings = highest pass yards
+*Describes your results. This can include tables and plots showing your results, as well as text describing how your models worked and the appropriate interpretations of the relevant output. I do not want to you to write out the textbook interpretations of all model coefficients! I only want you to interpret the output that is relevant for your question of interest that is framed in the introduction.*
 
-teams = nflfastR::teams_colors_logos %>% select(c("team_abbr", "team_nick"))
-teams = subset(teams, team_abbr != "STL" & team_abbr != "OAK" &
-               team_abbr != "SD" & team_abbr != "LAR")
-teams = teams %>% 
-  left_join(rush_data, by=join_by(team_nick == team)) %>%
-  left_join(pass_data, by=join_by(team_nick == team))
+# Discussion
 
-cleandf = cleandf %>% left_join(teams, by=join_by(posteam == team_abbr))
-
-```
-
-
-```{r}
-tmp_df = filter(df, game_id == "2023_01_ARI_WAS")
-tmp_df$game_seconds_remaining
-head(tmp_df)
-# for all plays:
-# find the game the play took place in
-# find the play before this one, that took place closest to it
-# get the type of play this one was
-# we can group by prev_play for conditional visualization
-```
-
-```{r}
-
-playData <- cleandf %>%
-  arrange(game_id, time) %>%
-  group_by(game_id) %>%
-  group_by(time, .add = TRUE)
-playData <- playData[,c("game_id", "time", "play_id", "play_type", "drive")]
-```
-
-```{r}
-playData = filter(playData, !is.na(drive))
-filter(playData, is.na(drive))
-```
-
-
-```{r}
-playData = cleandf[,c("game_id", "time", "play_id", "play_type", "drive", "posteam", "success")]
-playData = filter(playData, !is.na(drive))
-
-playData[, "prev_play_1"] = NA
-for (i in 1:nrow(playData)) {
-    if ((i == 1) || (playData[i-1,]$drive != playData[i,]$drive)){
-      playData[i,]$prev_play_1 = "first play"
-    }
-    # "normal" play
-    else {
-     playData[i,]$prev_play_1 = playData[i-1,]$play_type
-    }
-  }
-```
-
-```{r}
-head(playData)
-```
-
-
-```{r}
-k = 2
-
-for (t in 1:k) {
-    playData[, paste("prev_play_", t+1, sep="")] = NA
-    for (i in 1:nrow(playData)) {
-      if ((i <= t+1) || (playData[i-t-1,]$drive != playData[i,]$drive)){
-        print(paste("prev_play_", t+1, sep=""))
-        playData[i, paste("prev_play_", t+1, sep="")] = "first play"
-      }
-      # "normal" play
-      else {
-       playData[i,paste("prev_play_", t+1, sep="")]= playData[i-t-1,]$play_type
-      }
-  }
-}
-# 
-# playData[, "prev_play_2"] = NA
-# for (i in 1:nrow(playData)) {
-#   # if special teams play, note this
-#   print(i)
-#   # if (is.na(playData[i,]$prev_play) || is.na(playData[i,]$drive) || ((playData[i,]$prev_play != "run") && (playData[i,]$prev_play != "pass"))) {
-#   #   playData[i,]$prev_play_2 = "special"
-#   # }
-#   # if first play of drive, then make prev_play a special token
-# 
-#   else if ((i == 1) || is.na(playData[i-1,]$drive) || (playData[i-1,]$drive != playData[i,]$drive)) {
-#     playData[i,]$prev_play_2 = "first play"
-#   }
-#   # "normal" play
-#   else {
-#    playData[i,]$prev_play_2 = playData[i-1,]$prev_play
-#   }
-# }
-head(playData, 10)
-```
-
-
-```{r}
-tail(playData, 20)
-```
+*Gives your conclusions and summarizes what you have learned with regards to your question of interest. Are there any limitations with the approaches you used? What do you think are the next steps to follow-up your project?*
