@@ -245,6 +245,39 @@ mses_fails$baseline = mean((ifelse(0 == failed_df$outcome, 0, 1))^2)
 
 mses_fails %>% select(-c("dummy"))
 
+
+niners_df <- read_csv("runrunrun.csv")
+niners_df$outcome = ifelse(niners_df$play_type == "run", 1, 0) # 1 if run, 0 otherwise (pass)
+niners_df = niners_df %>% filter((play_type == "pass" & !is.na(pass_length) & 
+                      !is.na(pass_location)) | 
+                     (play_type == "run" & !is.na(run_location)))
+niners_df$multi = ifelse(niners_df$play_type == "run", paste("run", niners_df$run_location), 
+                  paste("pass", niners_df$pass_length, niners_df$pass_location))
+niners_df = subset(niners_df, posteam == "SF" | defteam == "SF")
+
+
+mse_niners = data.frame(dummy = c(1))
+
+mse_niners$model1 = cv.glm(data=niners_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mse_niners$model2 = cv.gam(data=niners_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank"))
+
+mse_niners$model3 = cv.multinom(data=niners_df, c("multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) +
+                     as.factor(prev_play_3) + ydstogo + score_differential +
+                     pass_rank + rush_rank"))
+
+mse_niners$model4 = cv.glmer(data=niners_df, c("outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                  as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                  (1|posteam:defteam) + ydstogo + pass_rank"))
+
+mse_niners$baseline = mean((ifelse(0 == niners_df$outcome, 0, 1))^2)
+
+mse_niners %>% select(-c("dummy"))
+
 ```
 
 
