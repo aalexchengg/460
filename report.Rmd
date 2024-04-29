@@ -15,7 +15,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library("nflfastR")
 library(espnscrapeR)
 library("ggplot2")
@@ -28,6 +28,34 @@ df <- read_csv("runrunrun.csv")
 df$outcome = ifelse(df$play_type == "run", 1, 0) 
 # 1 if run, 0 otherwise (pass)
 success_df = df %>% filter(success == 1)
+```
+
+```{r models}
+
+model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + ydstogo + score_differential + 
+                pass_rank + rush_rank, data=success_df, family="binomial")
+model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                as.factor(prev_play_3) + s(ydstogo) + s(score_differential) + 
+                pass_rank + rush_rank, data=success_df, family="binomial")
+model4 <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                  as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                  (1|posteam:defteam) + ydstogo + pass_rank, 
+                data = success_df, family = "binomial")
+# filtering for model 3
+filt_df = success_df %>% filter((play_type == "pass" & !is.na(pass_length) & 
+                      !is.na(pass_location)) | 
+                     (play_type == "run" & !is.na(run_location)))
+filt_df$multi = ifelse(filt_df$play_type == "run", paste("run", filt_df$run_location), 
+                  paste("pass", filt_df$pass_length, filt_df$pass_location))
+
+model3 <- multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                     as.factor(prev_play_3) + ydstogo + score_differential + 
+                     pass_rank + rush_rank, data = filt_df, maxit = 300, 
+                   trace = FALSE)
+
+# use success_df for only successful plays, 
+# filt_df for successful plays specifically for model 3
 ```
 
 # Introduction
@@ -47,6 +75,8 @@ The problem of playcalling is among the greatest challenges in sports coaching, 
 # Results
 
 *Describes your results. This can include tables and plots showing your results, as well as text describing how your models worked and the appropriate interpretations of the relevant output. I do not want to you to write out the textbook interpretations of all model coefficients! I only want you to interpret the output that is relevant for your question of interest that is framed in the introduction.*
+
+
 
 # Discussion
 
