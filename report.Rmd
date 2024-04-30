@@ -158,11 +158,14 @@ To link our data to our curiosity of playcalling strategy, we focused on 4 metho
 ## Logistic Regression 
 
 As we assume a linear relationship among our covariates, a logistic regression was a relatively straightforward choice given that the nature of our question involves classifying the next best play, which is a classification problem. 
+
+$y_i ~ f(y_i|\eta_i, ...), \eta_i = \beta_0 + \beta_1(p_{i-1}) + \beta_2(p_{i-2}) + \beta_3(p_{i-3}) + \beta_4(ydstogo) + \beta_5(score diff) + \beta_6(passrank) + \beta_7(rushrank)$ 
+
 ```{r}
 model1 <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
                 as.factor(prev_play_3) + ydstogo + score_differential + 
                 pass_rank + rush_rank, data=success_df, family="binomial")
-summary(model1)
+
 pander(summary(model1))
 ```
 
@@ -171,44 +174,29 @@ While all of our coefficients estimates are significant, it seems like the play 
 
 
 ```{r}
-pander(exp(coef(model1))[1:7])
+pander(exp(coef(model1)))
 ```
 
-```{r}
-unique(success_df$prev_play_1)
-exp(0.3159)
-exp(0.5934)
 
-exp(-0.294 )
-exp(-0.3718)
-
-exp(-0.5452)
-exp(-0.4015)
-
-exp(-0.1193)
-exp(0.01975)
-exp(0.01432)
-exp(-0.01443)
-```
 ## General Additive Model 
 
 
 Our logistic regression developed promising results, but did not necessarily account for the possibility that we had a non-linear relationship between our predictors and game outcome. By allowing us to smooth over predictors that may have non-linear relationships, we can take advantage of general additive models to flexibly model these intricate relationships. 
 
+$g(E[Y_i])  = \beta_0 + f(p_{i-1}) + f(p_{i-2}) + f(p_{i-3}) + f(ydstogo) + f(score diff) + f(passrank) + f(rushrank)$ 
+
 ```{r}
 model2 <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
                 as.factor(prev_play_3) + s(ydstogo) + s(score_differential) + 
              pass_rank +rush_rank, data=success_df, family="binomial")
-summary(model2)
 ```
 
 
-Odds Ratio: 
 ```{r}
-pander(exp(coef(model2))[1:7])
+pander(coef(model2))
 ```
 
-```{r}
+```{r, eval = FALSE}
 #Odds Ratio 
 pander(exp(c(Intercept= 0.194516, prev_1_pass = -0.086438, prev_1_run = -0.067655, prev_2_pass = -0.649021, prev_2_run = -0.501338, prev_3_run = 0.326274, prev_3_pass = 0.596848, pass_rank = 0.014828, push_rank = -0.014406)))
 ```
@@ -217,6 +205,9 @@ Surprisingly, after smoothing for score_differential and yds_to_go, the previous
 ## Multimonial Regression
 
 We proceed in experimenting with model performance with multimonial modeling, which allows the model to perform with more granularity while still maintaining the form of logistic regression. In specific, we have the presence of short/deep and left/middle/right passes and left/middle/right runs, so a multimonial model would be suitable for interpreting the effect on predictors of multiple categories on the outcome.We first filter out the NAs in the pass types, as there are more null values in our more granular predictors. 
+
+$Pr(Y = c|X) = \frac{e^x \beta_c}{\sum_{j}^{c}x\beta_j}$
+
 
 ```{r}
 filt_df = success_df %>% filter((play_type == "pass" & !is.na(pass_length) & 
@@ -232,7 +223,7 @@ model3 <- multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) +
 ```
 
 ```{r}
-pander(exp(coef(summary(model3))))
+pander(coef(summary(model3)))
 ```
 
 Pass short middle was the best-outcome strategy in term of odds ratio for all the previous plays with the exception of the 3rd previous play. We do not see a lot of difference in Run directions for the previous plays or for the other predictors, but do note that a middle run has a lower log odds than other directions for score_differential and ydstogo. This is reasonable - while a middle run may bring you closer to the other side of the field, the linebackers and nose tackles on defense often clog up the middle lane, which minimizes score potential. Middle runs also have lower odds ratio more often than not in previous plays. Analysis from other football analytics gurus have alsos shown that [short passes to the middle generate the most EPA]{https://sumersports.com/the-zone/hitting-the-hard-shots-why-the-middle-of-the-field-is-the-most-effective-throw-in-football-despite-the-best-quarterbacks-succeeding-elsewhere/}, but are just generally difficult to execute due to the amount of time the ball is in the QBs hands to generate such a play, as well as defensive schemes often wandering near the middle.
@@ -243,17 +234,16 @@ Pass short middle was the best-outcome strategy in term of odds ratio for all th
 
 Since our effects may not be constant, we let go of the fixed effects assumption present in the previous models to create a multilevel model. Specifically, we take advantage of the model's suitability for nested structures in accounting for dependencies among the same cluster. We also included random intercepts for the offensive and defensive teams and their interaction with each other. The idea behind this model is not only include the differences among each offensive team, but also the influences of which team is on the defense and how they interact with the the offensive team. For example, the Dolphins and the Jets have very different run tendencies, and would also exhibit different play-calling behaviors when playing the Browns versus the Seahawks. 
 
+$log(\frac{p}{1-p}) = \alpha_0 + \alpha_1 (p_{i-1}) + \alpha_2(p_{i-2}) + \alpha_3(p_{i-3}) + \alpha_4(ydstogo) + \alpha_5(scorediff) + u_p + u_d + u_{pd}$
+
 ```{r}
 model4 <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
                   as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
                   (1|posteam:defteam) + ydstogo + pass_rank, 
                 data = success_df, family = "binomial")
 ```
-```{r}
-summary(model4)
-```
 
-```{r}
+```{r, e}
 pander(coef(summary(model4)))
 ```
 ```{r}
