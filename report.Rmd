@@ -15,7 +15,20 @@ editor_options:
 ---
 # Run, Run, then Run Again
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+# Set knitr options for knitting code into the report:
+# - Save results so that code blocks aren't re-run unless code changes (cache),
+# _or_ a relevant earlier code block changed (autodep), but don't re-run if the
+# only thing that changed was the comments (cache.comments)
+# - Don't clutter R output with messages or warnings (message, warning)
+  # This _will_ leave error messages showing up in the knitted report
+# - Center figures by default
+# - Don't show code by default (echo)
+# - If we do show the code, tidy it up and hide the comments (tidy, tidy.opts)
+opts_chunk$set(cache=TRUE, autodep=TRUE, cache.comments=FALSE,
+               message=FALSE, warning=FALSE, fig.align="center",
+			   echo=FALSE,
+			   tidy=TRUE, tidy.opts=list(comment=FALSE))
 library("nflfastR")
 library(espnscrapeR)
 library("ggplot2")
@@ -64,9 +77,6 @@ model3 <- multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) +
 The problem of playcalling is among the greatest challenges in sports coaching, particularly in the sport of American football. Particularly poor calls -- e.g. the Seahawk's decision to pass rather than run with 1 yard to go in the closing seconds of Super Bowl XLIX -- represent snap decisions that can cause franchises and players alike to lose critical games and ultimately millions of dollars. As such, in order to avoid such outcomes coaches must be very smart about what kinds of plays to run in different scenarios, depending on the previous plays that they have called along with the context of the game. In this project we hope to answer the age-old question of what plays a football coach should call, given the types of the previous three plays in the drive, along with contextual information about the field position such as yards-to-go until a touchdown, the strength of the offensive team in terms of their passing and rushing abilities, and the difference in score in the game. We ultimately find that our fitted models on the given covariates perform strongly on both in-distribution and out-of-distribution data on their respective predictive tasks, compared to a naive baseline model.
 
 # Data
-
-*Describes the data you’re using in detail, where you accessed it, along with relevant exploratory data analysis (EDA). You should also include descriptions of any major pre-processing steps.*
-
 
 We obtained our data from the R packages `nflreadr` and `espnscrapeR`. The main feature of the `nflreadr` package that we used in this project was its wealth in NFL play-by-play data, which would give us detail on what was happening at each step in a NFL game. We primarily used play-by-play data from the most recent 2023 NFL season for our analysis, and while the dataset featured 372 features for each play, wed only used a subset of what we thought were the relevant features to our research question, such as yard to go and point differential. The primary purpose of using `espnscrapeR` was to obtain the rushing and passing rankings of each team, which we determined by using the total number of rushing and passing yards each team ahd at the end of the 2023 seasson.
 
@@ -151,9 +161,8 @@ ggplot(data = yardsvtest, aes(x = ydstogo)) +
 
 # Methods
 
-*Describes the modeling techniques you chose, their assumptions, justifications for why they are appropriate for the problem, and your plan for comparison/evaluation approaches. Additionally, you will need to describe how you will quantify uncertainty for your estimates of interest, with sufficient descriptions of the approach and justification for why it’s appropriate for your data and problem of interest.*
 
-To link our data to our curiosity of playcalling strategy, we focused on 4 methods: Logistic Regression, Generalized Additive Modeling, Multimonial Modeling, and Multilevel Modeling. 
+To link our data to our curiosity of play calling strategy, we focused on 4 methods: Logistic Regression, Generalized Additive Modeling, Multinomial Modeling, and Multilevel Modeling. We will use misclassification rate to compare and evaluate the models, and we will use 5-fold cross validation to account for uncertainty. 
 
 ## Logistic Regression 
 
@@ -202,9 +211,9 @@ pander(exp(c(Intercept= 0.194516, prev_1_pass = -0.086438, prev_1_run = -0.06765
 ```
 Surprisingly, after smoothing for score_differential and yds_to_go, the previous 1st play type lost its significance while the ratio for both play types increased substantially. Additionally, the run had a higher odds ratio than that of a pass for the first previous play - the exact opposite as our previous model. However, we developed similar results as logistic regression for the previous second and third play types. We hypothesize that the significant change in the first previous play stems from ydstogo and score differential having a sizable interaction effect on the first previous play, which makes sense as ydstogo and score differential measure current conditions of the game, and the most recent previous play contributes more change to current situations than further plays in time.
 
-## Multimonial Regression
+## Multinomial Regression
 
-We proceed in experimenting with model performance with multimonial modeling, which allows the model to perform with more granularity while still maintaining the form of logistic regression. In specific, we have the presence of short/deep and left/middle/right passes and left/middle/right runs, so a multimonial model would be suitable for interpreting the effect on predictors of multiple categories on the outcome.We first filter out the NAs in the pass types, as there are more null values in our more granular predictors. 
+We proceed in experimenting with model performance with multinomial modeling, which allows the model to perform with more granularity while still maintaining the form of logistic regression. In specific, we have the presence of short/deep and left/middle/right passes and left/middle/right runs, so a multinomial model would be suitable for interpreting the effect on predictors of multiple categories on the outcome.We first filter out the NAs in the pass types, as there are more null values in our more granular predictors. 
 
 $Pr(Y = c|X) = \frac{e^x \beta_c}{\sum_{j}^{c}x\beta_j}$
 
