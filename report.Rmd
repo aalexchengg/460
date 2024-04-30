@@ -67,7 +67,87 @@ The problem of playcalling is among the greatest challenges in sports coaching, 
 
 *Describes the data you’re using in detail, where you accessed it, along with relevant exploratory data analysis (EDA). You should also include descriptions of any major pre-processing steps.*
 
-**TODO: we should probably include the code that got us runrunrun.csv somewhere in our code submission**
+
+We obtained our data from the R packages `nflreadr` and `espnscrapeR`. The main feature of the `nflreadr` package that we used in this project was its wealth in NFL play-by-play data, which would give us detail on what was happening at each step in a NFL game. We primarily used play-by-play data from the most recent 2023 NFL season for our analysis, and while the dataset featured 372 features for each play, wed only used a subset of what we thought were the relevant features to our research question, such as yard to go and point differential. The primary purpose of using `espnscrapeR` was to obtain the rushing and passing rankings of each team, which we determined by using the total number of rushing and passing yards each team ahd at the end of the 2023 seasson.
+
+With these two datasets, we created our own dataset through four major pre-processing steps.
+
+(1) In `nflreadr`, we would redefine a successful play as having a positive Expected Points Added (EPA) for the first and second down, and covering the yards needed to achieve a first down for the third and fourth down. 
+
+(2) With the dataset from `nflreadr`, we would take the $k$ previous rows before a play and parse out the play type. We would then augment the dataset by adding $k$ columns, with the $i$th added column corresponding to the $i$th previous play.
+
+(3) We would do a left-join operation with the `espnscrapeR` dataset - for the team with the possession, we would add its pass and rush ranking derived from the `espnscrapeR` dataset, resulting in two more additional columns to our dataset.
+
+(4) We would filter out all plays that were not successes due to difficulties with counterfactuals, as well as all plays that weren't a rush or a pass. Thus, our dataset would only contain successful rush or pass plays.
+
+This would result in the main dataset that we would work with training and building our models.
+
+However, it would be unwise to blindly fit regressions without taking a look at possible patterns in our data, and our exploratory data analysis revealed some things that were intuitive, and some that were interesting. 
+
+```{r}
+nfl_df <- nflfastR::load_pbp()
+eda_df = clean_pbp(nfl_df)
+# CLEAN DATA
+# remove all plays that weren't rushes or passes (this means punts, kickoffs, special teams plays, aborted plays, qb spikes, etc.)
+eda_df$success = ifelse(eda_df$down >= 3 & eda_df$ydstogo > eda_df$yards_gained, 0, eda_df$success)
+cleandf = eda_df %>% 
+  filter(play_type == "run" | play_type == "pass") %>% 
+  filter(penalty == 0) %>% 
+  filter(success == 1)
+# remove all plays where a penalty occured - we only want normal plays
+# set third downs that didnt get a first down as unsuccessful
+# 3 1/2 we can think of other successes but this is the easiest one so far
+# remove all unsuccessful plays
+```
+
+The first thing we took a look at was the relationship between pass ranking and number of pass attempts, as well as rush ranking and number of rush attempts, based on data from the `espnscrapeR` dataset. At a glance, these scatterplots seem pretty intuitive - the higher the ranking for a particular aspect of the game, the more attempts that a team would have with it. This is particulary true for rushing, where the scatterplot seems extremely linear, and from a qualitative perspective also makes sense. Teams like the Ravens, 49ers, and Dolphins have fast runners in Lamar Jackson, Christian McCaffrey, and Raheem Mostert, and it would make sense to just let these players do the work in creating their own yardage. Things get a bit more interesting when you start looking at the relationship between pass attempts and pass rankings. Though this scatterplot is still relatively linear, it is significantly more scattered than the rushing plot, which may indicate that the quality of your passing offense doesn't dictate how much you actually pass as much as rushing would. What's particularly interesting is that the top rushing teams we just mentioned - Ravens, 49ers, and Dolphins - all seem to have lower pass attempts than expected, even though the rankings for the Dolphins and 49ers are actually quite high. The 49ers and the Dolphins to have plenty of lethal receiver options (Brandon Aiyuk, Tyreek Hill), but it seems like teams just prefer to rush if they're good at it, regardless of their passing abilities, which may be attributed to ball safety in these two types of plays.
+
+```{r, rankvattempt}
+rush_data = scrape_team_stats_nfl(season = 2023, stats = "rushing", role = "offense")
+rush_data = rush_data %>%
+  arrange(rush_yds, desc=TRUE) %>%
+  mutate(rush_rank = floor(rank(-rush_yds)))
+rush_data = rush_data %>% select(-c("rush_yds"))
+# rush rankings = highest rush yards
+pass_data = scrape_team_stats_nfl(season = 2023, stats = "passing", role = "offense")
+pass_data = pass_data %>% 
+  arrange(pass_yds, desc=TRUE) %>% 
+  mutate(pass_rank = floor(rank(-pass_yds)))
+pass_data = pass_data %>% select(-c("pass_yds"))
+# pass rankings = highest pass yards
+ggplot(data=rush_data, aes(x=rush_rank, y=rush_att, label = team)) + geom_point(color='blue') + labs(
+  title="Rush Rank vs. Rush Attempts", 
+  x="Rush Rank", 
+  y="Rush Attempts Made"
+) + geom_text(hjust = 0, vjust = 0)
+ggplot(data=pass_data, aes(x=pass_rank, y=pass_att, label = team)) + geom_point(color='red') + labs(
+  title="Pass Rank vs. Pass Attempts", 
+  x="Pass Rank", 
+  y="Pass Attempts Made"
+) + geom_text(hjust = 0, vjust = 0)
+```
+
+We then took a look at the types of plays that were occcuring at each down. Recall that the goal of each down is to either obtain the first down or to score the ball, and after the fourth down, teams are required to turn the ball over to the opponent. Thus, from first to third down, it makes sense that the number of pass plays increase significantly, as teams are more desperate to cover the amount of yards needed to get to the first down. Fourth down is special in that there is some selection bias in these plays - NFL teams only really go for fourth down when (1) not doing so would essentially mean the forfeiture of the game, or (2) the number of yards is small enough that the team is willing to risk turning the ball over to the other team for a chance to extend the play. Nevertheless, it is still interesting that teams are more inclined to pass rather than rush on fourth down. Since yards needed is usually small, it would make intuitive sense that teams would actually prefer to *rush*, so this may be a part of NFL play calling that depends on the previous plays, which is something we want to explore.
+
+```{r, marginal}
+frequencies = nfl_df %>% filter(is.na(down) == FALSE) %>% group_by(down) %>% summarize(freq = sum(pass_attempt, na.rm = TRUE)/(sum(pass_attempt, na.rm = TRUE) + sum(rush_attempt, na.rm = TRUE)))
+frequencies = data.frame(down = 1:4, "Pass Frequency" = frequencies$freq, "Run Frequency" = 1 - frequencies$freq) %>% pivot_longer(-down)
+ggplot(data = frequencies, aes(x = factor(down), y = value, fill = name)) + labs(x = "Down", y = "Play Frequency", fill = "Type", title = "Play Frequency By Down") + geom_bar(position = "dodge", stat = "identity")
+```
+
+Lastly, we took a look at the relationship between the number of yards to go and the pass/rush attempts at each point. What we see is that under 3 yards the chance of a rush or a pass is generally a coin toss, but as the number of yards increases up to 30, teams are much more likely to pass rather than rush, due to the fact that they are desperate to cover more yards in their plays. Past 30 yards however, and it seems like it a coin toss once again, since the number of yards needed is so high that teams may either opt to make safer plays that won't result in turnovers (rushes), or still try to cover the amount of yards needed and extend the drive (passes).
+
+```{r}
+yardsvtest = nfl_df %>% filter(is.na(ydstogo) == FALSE) %>% group_by(ydstogo) %>% summarize(freq = sum(pass_attempt, na.rm = TRUE)/(sum(pass_attempt, na.rm = TRUE) + sum(rush_attempt, na.rm = TRUE)))
+yardsvtest = data.frame(ydstogo = yardsvtest$ydstogo, "Pass Frequency" = yardsvtest$freq, "Run Frequency" = 1 - yardsvtest$freq)
+legend_colors <- c("Pass" = "red", "Run" = "blue")
+ggplot(data = yardsvtest, aes(x = ydstogo)) + 
+  geom_line(aes(y = Pass.Frequency, color = "Pass")) + 
+  geom_line(aes(y = Run.Frequency, color = "Run")) + 
+  labs(title="How does distance to 1st down impact play type?", x="Distance from 1st down (yards)", y="Frequency of Play") + 
+  scale_color_manual(values = legend_colors) + 
+  theme_bw()
+```
 
 # Methods
 
