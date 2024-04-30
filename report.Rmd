@@ -76,10 +76,72 @@ The problem of playcalling is among the greatest challenges in sports coaching, 
 
 *Describes your results. This can include tables and plots showing your results, as well as text describing how your models worked and the appropriate interpretations of the relevant output. I do not want to you to write out the textbook interpretations of all model coefficients! I only want you to interpret the output that is relevant for your question of interest that is framed in the introduction.*
 
+```{r model results}
 
+cv.misclass <- function(data, nfolds = 5, model = "none") {
+  # model will be either glm, gam, glmer, or multinom
+  n <- nrow(data)
+  fold.labels <- sample(rep(1:nfolds, length.out = n))
+  misclass <- matrix(NA, nrow = nfolds, ncol = 1)
+  for (fold in 1:nfolds) {
+    test.rows <- which(fold.labels == fold)
+    train <- data[-test.rows, ]
+    test <- data[test.rows, ]
+    if (model == "glm") {
+      current.model <- glm(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                             as.factor(prev_play_3) + ydstogo + score_differential + 
+                             pass_rank + rush_rank, data = train, family = "binomial")
+    } else if (model == "gam") {
+      current.model <- gam(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                             as.factor(prev_play_3) + s(ydstogo) + s(score_differential) + 
+                             pass_rank + rush_rank, data = train, family = "binomial")
+    } else if (model == "glmer") {
+      current.model <- glmer(outcome ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                               as.factor(prev_play_3) + (1|posteam) + (1|defteam) + 
+                               (1|posteam:defteam) + ydstogo + pass_rank, 
+                             data = train, family = "binomial")
+    } else {
+      current.model <- multinom(multi ~ as.factor(prev_play_1) + as.factor(prev_play_2) + 
+                                  as.factor(prev_play_3) + ydstogo + score_differential + 
+                                  pass_rank + rush_rank, data = train, maxit = 300, 
+                                trace = FALSE)
+    }
+    if (model == "multinom") {
+      predictions <- predict(current.model, newdata = test, type="class")
+      test.responses = test$multi
+    } else {
+      predictions <- round(predict(current.model, newdata = test, type="response"))
+      test.responses = test$outcome
+    }
+    total_wrong <- sum(predictions != test.responses)
+    total <- length(predictions)
+    
+    misclass[fold, 1] <- total_wrong / total
+  }
+  return(colMeans(misclass))
+}
+
+model1.misclass = cv.misclass(success_df, model = "glm")
+model2.misclass = cv.misclass(success_df, model = "gam")
+model3.misclass = cv.misclass(filt_df, model = "multinom")
+model4.misclass = cv.misclass(success_df, model = "glmer")
+
+```
+
+```{r displaying misclassification rates}
+output = data.frame(model1.misclass, model2.misclass, model3.misclass, model4.misclass)
+colnames(output) = c("Model 1", "Model 2", "Model 3", "Model 4")
+rownames(output) = c("Misclassification Rate")
+knitr::kable(t(output), digits=4)
+```
+
+With the four models we trained, we decided to evaluate them using misclassification rate, given that our problem is that of classification (labeling each play as either a run or a pass for three of our models, and classifying each play with its length and location for the multinomial model). In order to account for the uncertainty of our models' performance on out-of-sample data, we performed 5-fold cross-validation on each of our models and achieved average misclassification rates, shown above. Our second model, the GAM, performs the best with a 5-fold CV misclassification rate of 0.35, meaning that on average, we expect our GAM model to incorrectly predict the run/pass about 35\% of the time. Our first model and last model (GLM and GLMER models) perform very similarly, but ever so slightly worse (predicting incorrectly about 36\% of the time). Our third model, the multinomial model, performs the worst with a misclassification rate of about 77\%. This is likely due to the fact that our classification is more granular, as we now have nine different classes we could predict instead of the two we previously had. 
 
 # Discussion
 
 Overall it was very interesting to see how similarly our chosen models performed given the breadth of the features we chose. This may suggest that our features were not distinct enough from each other or we did not select enough features. This could be plausible as play-calling is a clearly complex process representing the battle between offensive and defensive coaching minds along with the players on the field, not to mention the field position of the play itself. As such, it is plausible that one limitation of our approach is simply that we did not perform enough vetting of the features we chose. In the future we could potentially add more features such as the ranking of the defensive team on the field versus the pass or the run (currently no defensive statistics are considered, which could be troublesome) as well as including features such as which team is home versus away, or perhaps tuning our models on different number of prior plays that the model is able to see.
 
 Secondly, the question of what our training data should look like was something that we could potentially change in the future as well. By nature our data fails to reveal counterfactual outcomes, e.g. the offensive team induces a treatment in the form of a play call, causing some outcome in the form of yards gained, which doesn't allow for seeing what *would* have happened should a different play have been run. As a result we chose not to include what we determined to be 'failed' plays in our training process, and so we modeled the probability that a given play occurred given that it was successful. This process therefore wastes lots of data: no information from the failed plays is reflected in our trained models. Expanding our analysis to be a causal inference question in which we attempt to do some modeling on what play calls could potentially reverse or alter the outcomes of failed plays could represent an interesting statistical question under which future research could be conducted.
+
+
+
